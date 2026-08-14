@@ -218,8 +218,13 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
   const { text, mentionedBot } = extractText(msg, botOpenId ?? "");
 
   if (!shouldHandleMessage(msg, mentionedBot)) {
+    console.log(
+      `[handle] ignored chat_type=${msg.chatType} message_type=${msg.messageType} mentionedBot=${mentionedBot}`,
+    );
     return;
   }
+
+  console.log(`[handle] chat_type=${msg.chatType} message_id=${msg.messageId}`);
 
   const sessionKey = msg.chatId;
 

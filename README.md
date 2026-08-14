@@ -68,14 +68,16 @@ Agent 通过 `settingSources: ["project"]` 加载这些规则。人设、业务�
 
 1. **应用能力** → 开通 **机器人**
 2. **权限**（开通后**发布新版本**才生效），至少：
-   - 消息：获取与发送单聊/群消息、上传图片、上传文件、下载文件（如 `im:message`、`im:resource`）
-   - 文档：读正文、创建文档、编辑文档（如 `docx:document:readonly`、`docx:document` / write）
-   - 若要把新建文档放到指定文件夹：Drive 文件夹相关权限，并填 `feishuDocsFolder`
-3. **版本管理**：发布；可用范围包含你自己
-4. **事件与回调** → 订阅方式选 **长连接**（先让 bot 进程在线再保存）
-5. 事件：`im.message.receive_v1`
-6. 回调：`card.action.trigger`（Agent 选择题卡片用）
-7. **读写已有文档**：在飞书文档里把机器人加为协作者（读/编辑），仅开通 API 权限不够
+   - **单聊**：`im:message.p2p_msg:readonly`（只有群聊 @ 能回、私聊没反应，通常是缺这个）
+   - **群聊 @**：`im:message.group_at_msg:readonly`
+   - **发消息**：`im:message`
+   - 文件：上传/下载（`im:resource` 等）
+   - 文档：读/写 docx（按需）
+3. **版本管理**：发布；**可用范围**包含你自己
+4. **事件与回调** → 长连接（先 `sandy` 在线再保存）
+5. 事件 `im.message.receive_v1`：点进去确认 **单聊消息**、**群聊 @ 机器人** 子开关都已开通
+6. 回调：`card.action.trigger`
+7. **读写已有文档**：把机器人加为文档协作者
 
 ### 5. 启动
 
