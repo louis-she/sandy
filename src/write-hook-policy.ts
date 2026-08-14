@@ -29,7 +29,6 @@ export function writeHookPolicy(): string {
   const payload = {
     updatedAt: new Date().toISOString(),
     allowedRoots: [...new Set(roots)],
-    protectedWriteGlobs: [".cursor/rules", ".rules"],
   };
   fs.writeFileSync(policyPath, JSON.stringify(payload, null, 2), "utf8");
   return policyPath;

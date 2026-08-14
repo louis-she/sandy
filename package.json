@@ -1,6 +1,6 @@
 {
   "name": "@chenglu.she/sandy",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "license": "MIT",
   "type": "module",
   "description": "Feishu long-connection bot that drives Cursor agents via @cursor/sdk",
@@ -26,7 +26,8 @@
     "assets",
     "README.md",
     "LICENSE",
-    "config.yaml.example"
+    "config.yaml.example",
+    "templates"
   ],
   "scripts": {
     "dev": "tsx watch src/cli.ts",

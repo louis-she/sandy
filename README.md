@@ -31,7 +31,7 @@ mkdir -p ~/treedome && cd ~/treedome
 sandy init
 ```
 
-会交互式询问飞书 / Cursor / Agent 等项，并写入当前目录的 `config.yaml`。也可参考 [config.yaml.example](./config.yaml.example) 手改。
+会交互式询问飞书 / Cursor / Agent 等项，并写入当前目录的 `config.yaml`。人设模板见 [templates/sandy.mdc](./templates/sandy.mdc)，可复制到 `.cursor/rules/`。
 
 必填项：
 
