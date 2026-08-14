@@ -1,5 +1,7 @@
 # Feishu ↔ Cursor Bot
 
+[![npm version](https://img.shields.io/npm/v/@chenglu.she/sandy)](https://www.npmjs.com/package/@chenglu.she/sandy)
+
 <p align="center">
   <img src="assets/sandy.png" alt="Sandy" width="220" height="220" />
 </p>
