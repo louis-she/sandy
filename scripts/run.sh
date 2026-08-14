@@ -7,8 +7,8 @@ cd "$ROOT"
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${HOME}/.bin:${PATH:-}"
 
-if [[ ! -f "$ROOT/.env" ]]; then
-  echo "[run] missing $ROOT/.env — copy from .env.example first" >&2
+if [[ ! -f "$ROOT/config.yaml" ]]; then
+  echo "[run] missing $ROOT/config.yaml — run \`sandy init\` first" >&2
   exit 1
 fi
 

@@ -1,0 +1,13 @@
+feishu:
+  appId: "cli_xxx"
+  appSecret: "xxx"
+cursor:
+  apiKey: "crsr_xxx"
+  model: "auto"
+agent:
+  name: "Sandy"
+  cwd: "."
+  dirs: []
+  dirLinks: []
+  sandbox: false
+feishuDocsFolder: ""

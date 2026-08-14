@@ -8,7 +8,7 @@
 
 <p align="center"><b>Sandy</b> — 飞书长连接机器人。</p>
 
-通用脚手架：在任意项目目录放一份 `.env` +（可选）`.cursor/rules`，装好依赖后启动即可。
+通用脚手架：在工作目录放一份 `config.yaml` +（可选）`.cursor/rules`，装好依赖后启动即可。
 
 ## 需要什么
 
@@ -22,38 +22,40 @@
 
 `npm install -g @chenglu.she/sandy`
 
-### 2. 在「工作目录」准备 `.env`
+### 2. 初始化配置
 
-CLI **读取你启动时的 cwd** 下的 `.env`（不是包安装目录）。例如：
+在你要运行 bot 的目录执行（例如 `~/treedome`）：
 
 ```bash
 mkdir -p ~/treedome && cd ~/treedome
-cp "$(npm root -g)/@chenglu.she/sandy/.env.example" .env
+sandy init
 ```
 
-必填：
+会交互式询问飞书 / Cursor / Agent 等项，并写入当前目录的 `config.yaml`。也可参考 [config.yaml.example](./config.yaml.example) 手改。
 
-| 变量 | 说明 |
+必填项：
+
+| 配置项 | 说明 |
 |------|------|
-| `FEISHU_APP_ID` | 飞书应用 App ID |
-| `FEISHU_APP_SECRET` | 飞书应用 Secret |
-| `CURSOR_API_KEY` | Cursor API Key |
+| `feishu.appId` | 飞书应用 App ID |
+| `feishu.appSecret` | 飞书应用 Secret |
+| `cursor.apiKey` | Cursor API Key |
 
-常用可选：
+常用可选项：
 
-| 变量 | 默认 | 说明 |
+| 配置项 | 默认 | 说明 |
 |------|------|------|
-| `AGENT_NAME` | `Sandy` | Agent 显示名 |
-| `AGENT_CWD` | 当前目录 | Agent 工作区（会加载这里的 `.cursor/rules`） |
-| `AGENT_DIRS` | （空） | 额外可访问目录，逗号分隔 |
-| `AGENT_DIR_LINKS` | （空） | `AGENT_CWD` 下要一并放行的 symlink 名 |
-| `AGENT_SANDBOX` | `false` | `true` 时开 Cursor 本地沙箱 |
-| `CURSOR_MODEL` | `auto` | 模型 id |
-| `FEISHU_DOCS_FOLDER` | （空） | 创建飞书文档时的默认 Drive `folder_token` |
+| `agent.name` | `Sandy` | Agent 显示名 |
+| `agent.cwd` | 工作目录 | Agent 工作区（会加载这里的 `.cursor/rules`） |
+| `agent.dirs` | `[]` | 额外可访问目录 |
+| `agent.dirLinks` | `[]` | `agent.cwd` 下要一并放行的 symlink 名 |
+| `agent.sandbox` | `false` | `true` 时开 Cursor 本地沙箱 |
+| `cursor.model` | `auto` | 模型 id |
+| `feishuDocsFolder` | （空） | 创建飞书文档时的默认 Drive `folder_token` |
 
 ### 3. （推荐）放项目规则
 
-在 `AGENT_CWD`（默认就是 cwd）下：
+在 `agent.cwd`（默认就是运行目录）下：
 
 ```text
 .cursor/rules/your-persona.mdc
@@ -68,7 +70,7 @@ Agent 通过 `settingSources: ["project"]` 加载这些规则。人设、业务�
 2. **权限**（开通后**发布新版本**才生效），至少：
    - 消息：获取与发送单聊/群消息、上传图片、上传文件、下载文件（如 `im:message`、`im:resource`）
    - 文档：读正文、创建文档、编辑文档（如 `docx:document:readonly`、`docx:document` / write）
-   - 若要把新建文档放到指定文件夹：Drive 文件夹相关权限，并填 `FEISHU_DOCS_FOLDER`
+   - 若要把新建文档放到指定文件夹：Drive 文件夹相关权限，并填 `feishuDocsFolder`
 3. **版本管理**：发布；可用范围包含你自己
 4. **事件与回调** → 订阅方式选 **长连接**（先让 bot 进程在线再保存）
 5. 事件：`im.message.receive_v1`
@@ -114,7 +116,7 @@ bash scripts/sandy-ctl.sh logs
 
 ```bash
 npm run dev        # tsx watch
-npm start          # 等同 feishu-cursor-bot（仍读 cwd .env）
+npm start          # 等同 sandy（读 cwd config.yaml）
 npm run typecheck
 ```
 

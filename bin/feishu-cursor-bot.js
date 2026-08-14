@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI entry: run from any directory; loads `.env` from cwd (see src/config.ts).
+ * CLI entry: run from any directory; loads `config.yaml` from cwd (see src/config-io.ts).
  *
  *   npx feishu-cursor-bot
  *   npm i -g . && feishu-cursor-bot
@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const entry = path.join(packageRoot, "src", "index.ts");
+const entry = path.join(packageRoot, "src", "cli.ts");
 const require = createRequire(import.meta.url);
 
 let tsxCli;

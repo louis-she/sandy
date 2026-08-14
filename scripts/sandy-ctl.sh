@@ -31,8 +31,8 @@ load() {
 
 case "$cmd" in
   install|start)
-    pkill -f 'feishu-cursor-bot/node_modules/.bin/tsx src/index.ts' 2>/dev/null || true
-    pkill -f 'feishu-cursor-bot/node_modules/tsx/dist/cli.mjs src/index.ts' 2>/dev/null || true
+    pkill -f 'feishu-cursor-bot/node_modules/.bin/tsx src/cli.ts' 2>/dev/null || true
+    pkill -f 'feishu-cursor-bot/node_modules/tsx/dist/cli.mjs src/cli.ts' 2>/dev/null || true
     sleep 1
     unload
     load

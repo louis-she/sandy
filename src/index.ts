@@ -298,6 +298,7 @@ async function handleCardAction(data: unknown) {
 
 async function main() {
   console.log("[boot] feishu-cursor-bot starting");
+  console.log(`[boot] config=${config.configPath}`);
   console.log(`[boot] agent cwd=${config.agentCwd}`);
   console.log(`[boot] agent dirs=${config.agentDirs.join(", ") || "(none)"}`);
   console.log(`[boot] sandbox=${config.agentSandbox}`);
