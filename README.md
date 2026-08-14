@@ -4,7 +4,7 @@
   <img src="assets/sandy.png" alt="Sandy" width="220" height="220" />
 </p>
 
-<p align="center"><b>Sandy</b> — 飞书长连接机器人，背后用 <a href="https://cursor.com/docs/sdk/typescript"><code>@cursor/sdk</code></a> 跑本地 Cursor Agent。</p>
+<p align="center"><b>Sandy</b> — 飞书长连接机器人。</p>
 
 通用脚手架：在任意项目目录放一份 `.env` +（可选）`.cursor/rules`，装好依赖后启动即可。
 
