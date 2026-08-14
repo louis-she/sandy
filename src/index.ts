@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   formatAnswerPrompt,
   parseTextAnswer,
@@ -19,7 +20,13 @@ import {
   replyAskQuestionCard,
   replyText,
   shouldHandleMessage,
+  type IncomingMessage,
 } from "./feishu.js";
+import {
+  downloadMessageResource,
+  parseIncomingFileContent,
+} from "./feishu-files.js";
+import { buildFeishuCustomTools } from "./feishu-tools.js";
 import { PendingQuestionStore } from "./pending-store.js";
 import { createSessionQueueManager, type QueueJob } from "./session-queue.js";
 import { SessionStore } from "./session-store.js";
@@ -46,6 +53,73 @@ const { client, wsClient, Lark } = createFeishuClients({
     }, 5_000);
   },
 });
+
+function safeFileName(name: string | undefined, fallback: string): string {
+  const base = (name || fallback).replace(/[/\\?%*:|"<>]/g, "_").trim();
+  return base.slice(0, 120) || fallback;
+}
+
+/** Download file/image/media attachments into AGENT_CWD inbox; return prompt text. */
+async function materializeIncomingAttachment(
+  msg: IncomingMessage,
+): Promise<string | undefined> {
+  if (!["file", "image", "media"].includes(msg.messageType)) {
+    return undefined;
+  }
+
+  const parsed = parseIncomingFileContent(msg.content);
+  const fileKey =
+    msg.messageType === "image"
+      ? parsed.imageKey || parsed.fileKey
+      : parsed.fileKey || parsed.imageKey;
+
+  if (!fileKey) {
+    throw new Error(
+      `无法解析附件 key（message_type=${msg.messageType}）: ${msg.content.slice(0, 200)}`,
+    );
+  }
+
+  const resourceType =
+    msg.messageType === "image"
+      ? "image"
+      : msg.messageType === "media"
+        ? "media"
+        : "file";
+
+  const extGuess =
+    resourceType === "image"
+      ? ".png"
+      : resourceType === "media"
+        ? ".mp4"
+        : "";
+  const fileName = safeFileName(
+    parsed.fileName,
+    `${resourceType}-${Date.now()}${extGuess}`,
+  );
+  const dest = path.join(
+    config.inboxDir,
+    msg.chatId,
+    `${Date.now()}-${fileName}`,
+  );
+
+  await downloadMessageResource(
+    client,
+    msg.messageId,
+    fileKey,
+    resourceType,
+    dest,
+  );
+  console.log(`[file] saved ${resourceType} -> ${dest}`);
+
+  return [
+    `用户在飞书里发送了${resourceType === "image" ? "图片" : resourceType === "media" ? "媒体" : "文件"}。`,
+    `已下载到本地路径（可用 Read / 处理后再用 feishu_send_file 发回）：`,
+    dest,
+    parsed.fileName ? `原始文件名：${parsed.fileName}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
 
 async function deliverOutcome(
   sessionKey: string,
@@ -82,7 +156,14 @@ async function deliverOutcome(
 const sessionQueue = createSessionQueueManager(client, async (job: QueueJob) => {
   const sessionKey = job.chatId;
   try {
-    const outcome = await runCursorAgent(sessionStore, sessionKey, job.prompt);
+    const customTools = buildFeishuCustomTools({
+      client,
+      replyToMessageId: job.messageId,
+      chatId: job.chatId,
+    });
+    const outcome = await runCursorAgent(sessionStore, sessionKey, job.prompt, {
+      customTools,
+    });
     await deliverOutcome(sessionKey, job.messageId, job.chatId, outcome);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -140,12 +221,29 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
     return;
   }
 
-  if (!text) {
-    await replyText(client, msg.messageId, "请发送文本消息，或发送 /new 开启新对话。");
+  const sessionKey = msg.chatId;
+
+  let attachmentPrompt: string | undefined;
+  try {
+    attachmentPrompt = await materializeIncomingAttachment(msg);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[file] download failed:", err);
+    await replyText(client, msg.messageId, `下载附件失败：${message}`);
     return;
   }
 
-  const sessionKey = msg.chatId;
+  const promptParts = [attachmentPrompt, text].filter(Boolean);
+  const prompt = promptParts.join("\n\n").trim();
+
+  if (!prompt) {
+    await replyText(
+      client,
+      msg.messageId,
+      "请发送文本、文件或图片；或发送 /new 开启新对话。",
+    );
+    return;
+  }
 
   if (isResetCommand(text)) {
     resetSession(sessionStore, sessionKey);
@@ -156,7 +254,7 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
   }
 
   const pending = pendingStore.get(sessionKey);
-  if (pending) {
+  if (pending && text && !attachmentPrompt) {
     const answers = parseTextAnswer(pending.questions, text);
     if (answers) {
       await continueWithAnswers(sessionKey, msg.messageId, answers);
@@ -167,7 +265,7 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
     pendingStore.delete(sessionKey);
   }
 
-  enqueuePrompt(sessionKey, msg.messageId, msg.chatId, text);
+  enqueuePrompt(sessionKey, msg.messageId, msg.chatId, prompt);
 }
 
 async function handleCardAction(data: unknown) {
@@ -204,6 +302,10 @@ async function main() {
   console.log(`[boot] agent dirs=${config.agentDirs.join(", ") || "(none)"}`);
   console.log(`[boot] sandbox=${config.agentSandbox}`);
   console.log(`[boot] model=${config.cursorModel}`);
+  console.log(`[boot] inbox=${config.inboxDir}`);
+  if (config.feishuDocsFolder) {
+    console.log(`[boot] docs folder=${config.feishuDocsFolder}`);
+  }
 
   try {
     const policyPath = writeHookPolicy();

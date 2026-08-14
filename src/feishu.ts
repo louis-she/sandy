@@ -123,12 +123,14 @@ export function extractText(
   return { text: text.replace(/\s+/g, " ").trim(), mentionedBot };
 }
 
+const HANDLE_MESSAGE_TYPES = new Set(["text", "file", "image", "media"]);
+
 export function shouldHandleMessage(
   msg: IncomingMessage,
   mentionedBot: boolean,
 ): boolean {
   if (msg.senderType === "app") return false;
-  if (msg.messageType !== "text") return false;
+  if (!HANDLE_MESSAGE_TYPES.has(msg.messageType)) return false;
   // p2p: always; group/topic: only when @bot
   if (msg.chatType === "p2p") return true;
   return mentionedBot;

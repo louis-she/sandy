@@ -29,7 +29,7 @@ function required(name: string): string {
   return value;
 }
 
-function expandPath(raw: string, base = workDir): string {
+function expandPath(raw: string, base: string = process.cwd()): string {
   const trimmed = raw.trim();
   if (trimmed === "~") return os.homedir();
   if (trimmed.startsWith("~/")) {
@@ -76,6 +76,10 @@ export const config = {
   agentSandbox: parseBool(process.env.AGENT_SANDBOX, false),
   sessionStorePath: path.resolve(workDir, ".data", "sessions.json"),
   pendingStorePath: path.resolve(workDir, ".data", "pending-questions.json"),
+  /** Optional Drive folder_token for feishu_doc_create default placement. */
+  feishuDocsFolder: process.env.FEISHU_DOCS_FOLDER?.trim() || "",
+  /** Where incoming Feishu files are saved (under AGENT_CWD so the agent can read them). */
+  inboxDir: path.join(expandPath(String(agentCwdRaw)), ".data", "feishu-inbox"),
 };
 
 export function localAgentOptions() {

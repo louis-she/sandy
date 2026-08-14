@@ -18,18 +18,25 @@
 
 ### 1. 安装
 
-从本仓库安装（全局或项目本地均可）：
+GitHub Release 会自动发布 npm 包到 [GitHub Packages](https://github.com/louis-she/sandy/pkgs/npm/sandy)。GitHub 的 npm registry **即使公开包也要登录**（PAT 勾选 `read:packages`）。
 
 ```bash
-# 全局
+# 一次性：把 @louis-she 指到 GitHub Packages
+echo '@louis-she:registry=https://npm.pkg.github.com' >> ~/.npmrc
+# 用 PAT 登录（username 是 GitHub 用户名，password 是 PAT）
+npm login --scope=@louis-she --registry=https://npm.pkg.github.com
+
+npm install -g @louis-she/sandy
+# 命令：feishu-cursor-bot 或 sandy
+```
+
+或从源码：
+
+```bash
 git clone https://github.com/louis-she/sandy.git
 cd sandy
 npm install
-npm link          # 得到命令 feishu-cursor-bot
-
-# 或只在某个目录用
-npm install
-npx feishu-cursor-bot
+npm link          # 得到命令 feishu-cursor-bot / sandy
 ```
 
 ### 2. 在「工作目录」准备 `.env`
@@ -59,6 +66,7 @@ cp /path/to/sandy/.env.example .env
 | `AGENT_DIR_LINKS` | （空） | `AGENT_CWD` 下要一并放行的 symlink 名 |
 | `AGENT_SANDBOX` | `false` | `true` 时开 Cursor 本地沙箱 |
 | `CURSOR_MODEL` | `auto` | 模型 id |
+| `FEISHU_DOCS_FOLDER` | （空） | 创建飞书文档时的默认 Drive `folder_token` |
 
 ### 3. （推荐）放项目规则
 
@@ -74,19 +82,23 @@ Agent 通过 `settingSources: ["project"]` 加载这些规则。人设、业务�
 ### 4. 飞书后台
 
 1. **应用能力** → 开通 **机器人**
-2. **权限**：消息读写 / 发消息 / 表情等（按后台提示开通并发布）
+2. **权限**（开通后**发布新版本**才生效），至少：
+   - 消息：获取与发送单聊/群消息、上传图片、上传文件、下载文件（如 `im:message`、`im:resource`）
+   - 文档：读正文、创建文档、编辑文档（如 `docx:document:readonly`、`docx:document` / write）
+   - 若要把新建文档放到指定文件夹：Drive 文件夹相关权限，并填 `FEISHU_DOCS_FOLDER`
 3. **版本管理**：发布；可用范围包含你自己
 4. **事件与回调** → 订阅方式选 **长连接**（先让 bot 进程在线再保存）
 5. 事件：`im.message.receive_v1`
 6. 回调：`card.action.trigger`（Agent 选择题卡片用）
+7. **读写已有文档**：在飞书文档里把机器人加为协作者（读/编辑），仅开通 API 权限不够
 
 ### 5. 启动
 
 ```bash
 cd ~/my-agent-home   # 有 .env 的目录
-feishu-cursor-bot
+feishu-cursor-bot    # 或 sandy
 # 或
-npx feishu-cursor-bot
+npx @louis-she/sandy
 ```
 
 看到 `ws client ready` 后，飞书里私聊机器人即可。
@@ -107,12 +119,15 @@ bash scripts/sandy-ctl.sh logs
 
 | 场景 | 行为 |
 |------|------|
-| 私聊 | 每条文本进 Agent |
-| 群聊 | 仅当 @机器人 |
+| 私聊 | 文本 / 文件 / 图片进 Agent |
+| 群聊 | 仅当 @机器人（文件同理，需 @） |
 | 同会话 | `Agent.resume` 多轮；映射在 cwd 的 `.data/sessions.json` |
 | `/new` `/reset` `重置` `新对话` | 清空会话，下次新建 Agent |
 | 连续消息 | 按会话排队；排队 `OneSecond`，处理中 `OnIt` |
 | `askQuestion` | 飞书交互卡片；点选或回编号后续跑 |
+| 用户发文件/图 | 下载到 `AGENT_CWD/.data/feishu-inbox/…`，路径写入 prompt |
+| Agent 发回文件 | 工具 `feishu_send_file`（本地路径 → 飞书回复） |
+| 飞书文档 | `feishu_doc_read` / `feishu_doc_create` / `feishu_doc_append` |
 
 ## 开发
 
@@ -121,6 +136,10 @@ npm run dev        # tsx watch
 npm start          # 等同 feishu-cursor-bot（仍读 cwd .env）
 npm run typecheck
 ```
+
+## 发版
+
+在 GitHub 上 **Draft a release**，tag 用 semver（`v0.1.0`）。`release` 事件会跑 [publish.yml](.github/workflows/publish.yml)，把 `@louis-she/sandy` 推到 GitHub Packages。包版本取自 tag（去掉 `v` 前缀）。
 
 ## License
 

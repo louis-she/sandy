@@ -1,4 +1,4 @@
-import { Agent, CursorAgentError } from "@cursor/sdk";
+import { Agent, CursorAgentError, type SDKCustomTool } from "@cursor/sdk";
 import {
   isAskQuestionToolName,
   parseAskQuestionArgs,
@@ -25,6 +25,11 @@ export type AgentNeedsInput = {
 
 export type AgentOutcome = AgentFinished | AgentNeedsInput;
 
+export type RunCursorAgentOptions = {
+  /** Per-turn Feishu tools (reply target changes each message). */
+  customTools?: Record<string, SDKCustomTool>;
+};
+
 const RESET_COMMANDS = new Set(["/new", "/reset", "重置", "新对话"]);
 
 export function isResetCommand(text: string): boolean {
@@ -35,9 +40,11 @@ export async function runCursorAgent(
   sessionStore: SessionStore,
   sessionKey: string,
   prompt: string,
+  options?: RunCursorAgentOptions,
 ): Promise<AgentOutcome> {
   const existing = sessionStore.get(sessionKey);
   let agent;
+  const customTools = options?.customTools;
 
   try {
     if (existing?.agentId) {
@@ -45,7 +52,10 @@ export async function runCursorAgent(
         apiKey: config.cursorApiKey,
         model: { id: config.cursorModel },
         name: config.agentName,
-        local: localAgentOptions(),
+        local: {
+          ...localAgentOptions(),
+          ...(customTools ? { customTools } : {}),
+        },
       });
       console.log(`[cursor] resumed agent=${existing.agentId} session=${sessionKey}`);
     } else {
@@ -53,13 +63,19 @@ export async function runCursorAgent(
         apiKey: config.cursorApiKey,
         model: { id: config.cursorModel },
         name: config.agentName,
-        local: localAgentOptions(),
+        local: {
+          ...localAgentOptions(),
+          ...(customTools ? { customTools } : {}),
+        },
       });
       sessionStore.set(sessionKey, agent.agentId);
       console.log(`[cursor] created agent=${agent.agentId} session=${sessionKey}`);
     }
 
-    const run = await agent.send(prompt);
+    const run = await agent.send(
+      prompt,
+      customTools ? { local: { customTools } } : undefined,
+    );
     console.log(`[cursor] run=${run.id} agent=${agent.agentId}`);
 
     let partialText = "";
