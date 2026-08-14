@@ -17,8 +17,8 @@
     "registry": "https://registry.npmjs.org"
   },
   "bin": {
-    "feishu-cursor-bot": "./bin/feishu-cursor-bot.js",
-    "sandy": "./bin/feishu-cursor-bot.js"
+    "feishu-cursor-bot": "bin/feishu-cursor-bot.js",
+    "sandy": "bin/feishu-cursor-bot.js"
   },
   "files": [
     "bin",
