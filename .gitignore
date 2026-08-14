@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.data/
+*.log
+logs/
+.DS_Store
+
+# Generated at runtime (hook allowlist from AGENT_DIRS)
+.cursor/hooks/policy.json
+
+# Persona / domain rules belong in AGENT_CWD, not this package
+.cursor/rules/

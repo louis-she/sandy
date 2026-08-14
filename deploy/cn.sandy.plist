@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>cn.sandy.bot</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/louisshe/cursor-home/feishu-cursor-bot</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/node</string>
+		<string>/Users/louisshe/cursor-home/feishu-cursor-bot/node_modules/tsx/dist/cli.mjs</string>
+		<string>src/index.ts</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/louisshe</string>
+		<key>LANG</key>
+		<string>en_US.UTF-8</string>
+		<key>PATH</key>
+		<string>/Users/louisshe/.bin:/Users/louisshe/.python39/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>/Users/louisshe/cursor-home/feishu-cursor-bot/logs/sandy.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/louisshe/cursor-home/feishu-cursor-bot/logs/sandy.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,127 @@
+# Feishu ↔ Cursor Bot
+
+<p align="center">
+  <img src="assets/sandy.png" alt="Sandy" width="220" height="220" />
+</p>
+
+<p align="center"><b>Sandy</b> — 飞书长连接机器人，背后用 <a href="https://cursor.com/docs/sdk/typescript"><code>@cursor/sdk</code></a> 跑本地 Cursor Agent。</p>
+
+通用脚手架：在任意项目目录放一份 `.env` +（可选）`.cursor/rules`，装好依赖后启动即可。
+
+## 需要什么
+
+- Node.js ≥ 20
+- [飞书企业自建应用](https://open.feishu.cn/)（开通机器人 + 长连接事件）
+- [Cursor API Key](https://cursor.com/settings)
+
+## Setup
+
+### 1. 安装
+
+从本仓库安装（全局或项目本地均可）：
+
+```bash
+# 全局
+git clone https://github.com/louis-she/sandy.git
+cd sandy
+npm install
+npm link          # 得到命令 feishu-cursor-bot
+
+# 或只在某个目录用
+npm install
+npx feishu-cursor-bot
+```
+
+### 2. 在「工作目录」准备 `.env`
+
+CLI **读取你启动时的 cwd** 下的 `.env`（不是包安装目录）。例如：
+
+```bash
+mkdir -p ~/my-agent-home && cd ~/my-agent-home
+cp /path/to/sandy/.env.example .env
+```
+
+必填：
+
+| 变量 | 说明 |
+|------|------|
+| `FEISHU_APP_ID` | 飞书应用 App ID |
+| `FEISHU_APP_SECRET` | 飞书应用 Secret |
+| `CURSOR_API_KEY` | Cursor API Key |
+
+常用可选：
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `AGENT_NAME` | `Sandy` | Agent 显示名 |
+| `AGENT_CWD` | 当前目录 | Agent 工作区（会加载这里的 `.cursor/rules`） |
+| `AGENT_DIRS` | （空） | 额外可访问目录，逗号分隔 |
+| `AGENT_DIR_LINKS` | （空） | `AGENT_CWD` 下要一并放行的 symlink 名 |
+| `AGENT_SANDBOX` | `false` | `true` 时开 Cursor 本地沙箱 |
+| `CURSOR_MODEL` | `auto` | 模型 id |
+
+### 3. （推荐）放项目规则
+
+在 `AGENT_CWD`（默认就是 cwd）下：
+
+```text
+.cursor/rules/your-persona.mdc
+.cursor/rules/your-domain.mdc
+```
+
+Agent 通过 `settingSources: ["project"]` 加载这些规则。人设、业务知识都写在这里，**不要写进 bot 源码**。
+
+### 4. 飞书后台
+
+1. **应用能力** → 开通 **机器人**
+2. **权限**：消息读写 / 发消息 / 表情等（按后台提示开通并发布）
+3. **版本管理**：发布；可用范围包含你自己
+4. **事件与回调** → 订阅方式选 **长连接**（先让 bot 进程在线再保存）
+5. 事件：`im.message.receive_v1`
+6. 回调：`card.action.trigger`（Agent 选择题卡片用）
+
+### 5. 启动
+
+```bash
+cd ~/my-agent-home   # 有 .env 的目录
+feishu-cursor-bot
+# 或
+npx feishu-cursor-bot
+```
+
+看到 `ws client ready` 后，飞书里私聊机器人即可。
+
+#### macOS 常驻（可选）
+
+本仓库带了 launchd 包装，避免挂在 IDE 终端里被杀掉：
+
+```bash
+bash scripts/sandy-ctl.sh install
+bash scripts/sandy-ctl.sh status
+bash scripts/sandy-ctl.sh logs
+```
+
+> plist 里是本机绝对路径，换机器请改 `deploy/cn.sandy.plist` 或自己写一份 LaunchAgent。
+
+## 行为速览
+
+| 场景 | 行为 |
+|------|------|
+| 私聊 | 每条文本进 Agent |
+| 群聊 | 仅当 @机器人 |
+| 同会话 | `Agent.resume` 多轮；映射在 cwd 的 `.data/sessions.json` |
+| `/new` `/reset` `重置` `新对话` | 清空会话，下次新建 Agent |
+| 连续消息 | 按会话排队；排队 `OneSecond`，处理中 `OnIt` |
+| `askQuestion` | 飞书交互卡片；点选或回编号后续跑 |
+
+## 开发
+
+```bash
+npm run dev        # tsx watch
+npm start          # 等同 feishu-cursor-bot（仍读 cwd .env）
+npm run typecheck
+```
+
+## License
+
+[MIT](./LICENSE)
