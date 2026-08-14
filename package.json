@@ -1,6 +1,6 @@
 {
-  "name": "@louis-she/sandy",
-  "version": "0.1.0",
+  "name": "@chenglu.she/sandy",
+  "version": "1.0.0",
   "license": "MIT",
   "type": "module",
   "description": "Feishu long-connection bot that drives Cursor agents via @cursor/sdk",
@@ -13,11 +13,12 @@
     "url": "https://github.com/louis-she/sandy/issues"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "bin": {
-    "feishu-cursor-bot": "./bin/feishu-cursor-bot.mjs",
-    "sandy": "./bin/feishu-cursor-bot.mjs"
+    "feishu-cursor-bot": "./bin/feishu-cursor-bot.js",
+    "sandy": "./bin/feishu-cursor-bot.js"
   },
   "files": [
     "bin",

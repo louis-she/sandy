@@ -18,26 +18,7 @@
 
 ### 1. 安装
 
-GitHub Release 会自动发布 npm 包到 [GitHub Packages](https://github.com/louis-she/sandy/pkgs/npm/sandy)。GitHub 的 npm registry **即使公开包也要登录**（PAT 勾选 `read:packages`）。
-
-```bash
-# 一次性：把 @louis-she 指到 GitHub Packages
-echo '@louis-she:registry=https://npm.pkg.github.com' >> ~/.npmrc
-# 用 PAT 登录（username 是 GitHub 用户名，password 是 PAT）
-npm login --scope=@louis-she --registry=https://npm.pkg.github.com
-
-npm install -g @louis-she/sandy
-# 命令：feishu-cursor-bot 或 sandy
-```
-
-或从源码：
-
-```bash
-git clone https://github.com/louis-she/sandy.git
-cd sandy
-npm install
-npm link          # 得到命令 feishu-cursor-bot / sandy
-```
+`npm install -g @chenglu.she/sandy`，命令为 `feishu-cursor-bot` 或 `sandy`。
 
 ### 2. 在「工作目录」准备 `.env`
 
@@ -98,7 +79,7 @@ Agent 通过 `settingSources: ["project"]` 加载这些规则。人设、业务�
 cd ~/my-agent-home   # 有 .env 的目录
 feishu-cursor-bot    # 或 sandy
 # 或
-npx @louis-she/sandy
+npx @chenglu.she/sandy
 ```
 
 看到 `ws client ready` 后，飞书里私聊机器人即可。
@@ -136,10 +117,6 @@ npm run dev        # tsx watch
 npm start          # 等同 feishu-cursor-bot（仍读 cwd .env）
 npm run typecheck
 ```
-
-## 发版
-
-在 GitHub 上 **Draft a release**，tag 用 semver（`v0.1.0`）。`release` 事件会跑 [publish.yml](.github/workflows/publish.yml)，把 `@louis-she/sandy` 推到 GitHub Packages。包版本取自 tag（去掉 `v` 前缀）。
 
 ## License
 
