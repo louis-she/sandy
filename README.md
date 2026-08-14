@@ -18,15 +18,15 @@
 
 ### 1. 安装
 
-`npm install -g @chenglu.she/sandy`，命令为 `feishu-cursor-bot` 或 `sandy`。
+`npm install -g @chenglu.she/sandy`
 
 ### 2. 在「工作目录」准备 `.env`
 
 CLI **读取你启动时的 cwd** 下的 `.env`（不是包安装目录）。例如：
 
 ```bash
-mkdir -p ~/my-agent-home && cd ~/my-agent-home
-cp /path/to/sandy/.env.example .env
+mkdir -p ~/treedome && cd ~/treedome
+cp "$(npm root -g)/@chenglu.she/sandy/.env.example" .env
 ```
 
 必填：
@@ -76,10 +76,8 @@ Agent 通过 `settingSources: ["project"]` 加载这些规则。人设、业务�
 ### 5. 启动
 
 ```bash
-cd ~/my-agent-home   # 有 .env 的目录
-feishu-cursor-bot    # 或 sandy
-# 或
-npx @chenglu.she/sandy
+cd ~/treedome
+sandy
 ```
 
 看到 `ws client ready` 后，飞书里私聊机器人即可。
