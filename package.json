@@ -1,6 +1,6 @@
 {
   "name": "@chenglu.she/sandy",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "license": "MIT",
   "type": "module",
   "description": "Feishu long-connection bot that drives Cursor agents via @cursor/sdk",

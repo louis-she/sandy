@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import {
   configFilePath,
   expandPath,
@@ -7,6 +6,7 @@ import {
   writeConfigFile,
 } from "./config-io.js";
 import { defaultConfigFile, type SandyConfigFile } from "./config-schema.js";
+import { INIT_FIELD_GUIDES } from "./init-guides.js";
 import { createPrompter } from "./prompt.js";
 
 function parseArgs(argv: string[]): { targetDir: string } {
@@ -43,12 +43,13 @@ export async function runInit(argv: string[] = []): Promise<void> {
   const prompt = createPrompter();
 
   try {
-    console.log("Sandy 初始化 — 逐步生成 config.yaml\n");
+    console.log("Sandy 初始化");
+    console.log("会逐步说明每项如何获取，并写入 config.yaml。\n");
     console.log(`目标目录: ${targetDir}`);
-    console.log(`配置文件: ${outPath}\n`);
+    console.log(`配置文件: ${outPath}`);
 
     if (fs.existsSync(outPath)) {
-      const overwrite = await prompt.askYesNo("已存在 config.yaml，是否覆盖？", false);
+      const overwrite = await prompt.askYesNo("\n已存在 config.yaml，是否覆盖？", false);
       if (!overwrite) {
         console.log("已取消。");
         return;
@@ -57,32 +58,78 @@ export async function runInit(argv: string[] = []): Promise<void> {
 
     const cfg: SandyConfigFile = defaultConfigFile(targetDir);
 
-    console.log("【必填】飞书与 Cursor");
-    cfg.feishu.appId = await prompt.askRequired("飞书 App ID (FEISHU_APP_ID)");
-    cfg.feishu.appSecret = await prompt.askRequired("飞书 App Secret");
-    cfg.cursor.apiKey = await prompt.askRequired("Cursor API Key");
+    prompt.section("一、飞书应用");
+    prompt.guide(INIT_FIELD_GUIDES.feishuAppHome);
 
-    console.log("\n【可选】Agent 与工作区");
-    cfg.agent!.name = await prompt.ask("Agent 显示名", "Sandy");
-    cfg.agent!.cwd = await prompt.ask("Agent 工作目录 (AGENT_CWD)", targetDir);
+    cfg.feishu.appId = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.feishuAppId,
+      "App ID",
+      { required: true },
+    );
+    cfg.feishu.appSecret = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.feishuAppSecret,
+      "App Secret",
+      { required: true },
+    );
 
-    const dirsRaw = await prompt.ask("额外可访问目录，逗号分隔 (AGENT_DIRS，可留空)", "");
+    prompt.guide(INIT_FIELD_GUIDES.feishuSetupHint);
+
+    prompt.section("二、Cursor");
+    cfg.cursor.apiKey = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.cursorApiKey,
+      "API Key",
+      { required: true },
+    );
+
+    prompt.section("三、Agent 与工作区（可一路回车用默认）");
+    cfg.agent!.name = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.agentName,
+      "显示名",
+      { defaultValue: "Sandy" },
+    );
+    cfg.agent!.cwd = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.agentCwd,
+      "工作目录",
+      { defaultValue: targetDir },
+    );
+
+    const dirsRaw = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.agentDirs,
+      "额外目录（逗号分隔，可留空）",
+      { defaultValue: "" },
+    );
     cfg.agent!.dirs = dirsRaw ? splitList(dirsRaw) : [];
 
-    const linksRaw = await prompt.ask(
-      "AGENT_CWD 下要放行的 symlink 名，逗号分隔 (可留空)",
-      "",
+    const linksRaw = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.agentDirLinks,
+      "symlink 名（逗号分隔，可留空）",
+      { defaultValue: "" },
     );
     cfg.agent!.dirLinks = linksRaw ? splitList(linksRaw) : [];
 
-    cfg.agent!.sandbox = await prompt.askYesNo("开启 Cursor 本地沙箱 (AGENT_SANDBOX)?", false);
-    cfg.cursor.model = await prompt.ask("Cursor 模型 id", "auto");
-    cfg.feishuDocsFolder = await prompt.ask("飞书文档默认 folder_token (可留空)", "");
+    cfg.agent!.sandbox = await prompt.askYesNoWithGuide(
+      INIT_FIELD_GUIDES.agentSandbox,
+      "开启本地沙箱？",
+      false,
+    );
+    cfg.cursor.model = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.cursorModel,
+      "模型 id",
+      { defaultValue: "auto" },
+    );
+    cfg.feishuDocsFolder = await prompt.askWithGuide(
+      INIT_FIELD_GUIDES.feishuDocsFolder,
+      "folder_token（可留空）",
+      { defaultValue: "" },
+    );
 
     writeConfigFile(outPath, cfg);
 
-    console.log(`\n已写入 ${outPath}`);
-    console.log(`下一步: cd ${targetDir} && sandy`);
+    console.log("\n✓ 已写入 " + outPath);
+    console.log("\n下一步:");
+    console.log(`  cd ${targetDir}`);
+    console.log("  sandy");
+    console.log("\n飞书后台若尚未配置长连接与权限，请按上文「飞书后台还需完成」逐项检查。");
   } finally {
     prompt.close();
   }
