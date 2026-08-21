@@ -31,7 +31,13 @@ mkdir -p ~/treedome && cd ~/treedome
 sandy init
 ```
 
-会交互式询问飞书 / Cursor / Agent 等项，并写入当前目录的 `config.yaml`。人设模板见 [templates/sandy.mdc](./templates/sandy.mdc)，可复制到 `.cursor/rules/`。
+会交互式询问飞书 / Cursor / Agent 等项，写入 `config.yaml`；在 macOS 上接着触发磁盘授权弹窗（桌面 / 文稿 / 下载等）。人设模板见 [templates/sandy.mdc](./templates/sandy.mdc)，可复制到 `.cursor/rules/`。
+
+新机器务必在**电脑屏幕前**跑 init（不要 SSH）：弹出的「node 想访问某某文件夹」全部点「允许」，并把提示里的 Node 路径加到「完全磁盘访问权限」。以后单独补授权：
+
+```bash
+sandy authorize   # 别名：sandy diskauth
+```
 
 必填项：
 
@@ -86,7 +92,7 @@ cd ~/treedome
 sandy
 ```
 
-看到 `ws client ready` 后，飞书里私聊机器人即可。
+看到 `ws client ready` 后，飞书里私聊机器人即可。远程任务卡住、回家才看到 node 访问目录的授权框，再跑一次 `sandy authorize`。
 
 #### macOS 常驻（可选）
 

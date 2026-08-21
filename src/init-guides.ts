@@ -91,14 +91,6 @@ export const INIT_FIELD_GUIDES = {
     ],
   } satisfies FieldGuide,
 
-  agentDirLinks: {
-    title: "工作目录下的 symlink（可选）",
-    lines: [
-      "若 agent.cwd 里有 symlink（如 api → ~/code/api），填链接名以便一并放行。",
-      "多个名称用英文逗号分隔；留空可跳过。",
-    ],
-  } satisfies FieldGuide,
-
   agentSandbox: {
     title: "Cursor 本地沙箱",
     lines: [
@@ -119,18 +111,6 @@ export const INIT_FIELD_GUIDES = {
       "直接回车使用 auto。",
     ],
     links: [{ label: "Cursor 模型与 SDK", url: "https://cursor.com/docs/sdk/typescript" }],
-  } satisfies FieldGuide,
-
-  feishuDocsFolder: {
-    title: "飞书文档默认文件夹（可选）",
-    lines: [
-      "feishu_doc_create 创建文档时默认放到哪个云空间文件夹。",
-      "在飞书云文档打开目标文件夹，从 URL 或文件夹属性里复制 folder_token。",
-      "不需要自动归档文档可留空。",
-    ],
-    links: [
-      { label: "创建文档 API", url: "https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document/create" },
-    ],
   } satisfies FieldGuide,
 
   feishuAppHome: FEISHU_APP_HOME,

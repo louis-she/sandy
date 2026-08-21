@@ -100,13 +100,6 @@ export async function runInit(argv: string[] = []): Promise<void> {
     );
     cfg.agent!.dirs = dirsRaw ? splitList(dirsRaw) : [];
 
-    const linksRaw = await prompt.askWithGuide(
-      INIT_FIELD_GUIDES.agentDirLinks,
-      "symlink 名（逗号分隔，可留空）",
-      { defaultValue: "" },
-    );
-    cfg.agent!.dirLinks = linksRaw ? splitList(linksRaw) : [];
-
     cfg.agent!.sandbox = await prompt.askYesNoWithGuide(
       INIT_FIELD_GUIDES.agentSandbox,
       "开启本地沙箱？",
@@ -117,15 +110,23 @@ export async function runInit(argv: string[] = []): Promise<void> {
       "模型 id",
       { defaultValue: "auto" },
     );
-    cfg.feishuDocsFolder = await prompt.askWithGuide(
-      INIT_FIELD_GUIDES.feishuDocsFolder,
-      "folder_token（可留空）",
-      { defaultValue: "" },
-    );
 
     writeConfigFile(outPath, cfg);
 
     console.log("\n✓ 已写入 " + outPath);
+
+    if (process.platform === "darwin") {
+      const { runAuthorize } = await import("./authorize.js");
+      prompt.section("四、macOS 磁盘授权");
+      console.log("  弹出「node 想访问…」请全部点「允许」。远程 SSH 时弹窗在本机屏幕上。\n");
+      const extraDirs = [
+        expandPath(cfg.agent!.cwd || targetDir, targetDir),
+        ...(cfg.agent!.dirs ?? []).map((d) => expandPath(d, targetDir)),
+        targetDir,
+      ];
+      runAuthorize({ extraDirs, openSettings: true });
+    }
+
     console.log("\n下一步:");
     console.log(`  cd ${targetDir}`);
     console.log("  sandy");
