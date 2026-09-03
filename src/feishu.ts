@@ -287,7 +287,7 @@ export function buildAskQuestionCard(
           } satisfies CardActionValue,
         })),
       });
-    } else {
+    } else if (q.options.length > 0) {
       const lines = q.options.map((opt, oi) => `${oi + 1}. ${opt.label}`);
       elements.push({
         tag: "markdown",
@@ -297,12 +297,14 @@ export function buildAskQuestionCard(
   }
 
   if (!useButtons) {
+    const hasOptions = ask.questions.some((q) => q.options.length > 0);
     elements.push({
       tag: "markdown",
-      content:
-        ask.questions.length === 1
+      content: hasOptions
+        ? ask.questions.length === 1
           ? "请直接回复选项编号（多选如 `1,3`），或回复选项原文。"
-          : "请按题号回复，例如：`1:2; 2:1`（题号:选项编号）。",
+          : "请按题号回复，例如：`1:2; 2:1`（题号:选项编号）。也可直接用文字说明。"
+        : "请直接回复本题答案。",
     });
   }
 
@@ -318,19 +320,26 @@ export function buildAskQuestionCard(
 }
 
 export function formatAskQuestionFallbackText(ask: ParsedAskQuestion): string {
-  const lines = [`【需要选择】${ask.title?.trim() || ""}`.trim()];
+  const lines = [`【需要你选择】${ask.title?.trim() || ""}`.trim()];
   for (const [qi, q] of ask.questions.entries()) {
     lines.push("");
     lines.push(`${qi + 1}. ${q.prompt}${q.allowMultiple ? "（可多选）" : ""}`);
+    if (q.options.length === 0) {
+      lines.push("   （请直接回复）");
+      continue;
+    }
     for (const [oi, opt] of q.options.entries()) {
       lines.push(`   ${oi + 1}) ${opt.label}`);
     }
   }
   lines.push("");
+  const hasOptions = ask.questions.some((q) => q.options.length > 0);
   lines.push(
-    ask.questions.length === 1
-      ? "回复编号继续（多选如 1,3），也可点卡片按钮。"
-      : "回复格式如 1:2; 2:1，也可点卡片按钮（单题单选）。",
+    hasOptions
+      ? ask.questions.length === 1
+        ? "回复编号继续（多选如 1,3），也可点卡片按钮。"
+        : "回复格式如 1:2; 2:1，或直接用文字说明。"
+      : "请直接回复答案。",
   );
   return lines.join("\n");
 }
@@ -341,6 +350,13 @@ export async function replyAskQuestionCard(
   sessionKey: string,
   ask: ParsedAskQuestion,
 ): Promise<void> {
+  // Always send readable text first. Cursor's built-in AskQuestion UI never
+  // reaches Feishu; if the interactive card fails, the user still sees the
+  // questions and how to reply.
+  await replyText(client, messageId, formatAskQuestionFallbackText(ask), {
+    preferMarkdown: true,
+  });
+
   const card = buildAskQuestionCard(sessionKey, ask);
   try {
     await client.im.v1.message.reply({
@@ -351,8 +367,7 @@ export async function replyAskQuestionCard(
       },
     });
   } catch (err) {
-    console.warn("[feishu] interactive card failed, falling back to text:", err);
-    await replyText(client, messageId, formatAskQuestionFallbackText(ask));
+    console.warn("[feishu] interactive ask card failed (text already sent):", err);
   }
 }
 

@@ -2,7 +2,15 @@ import path from "node:path";
 import {
   formatAnswerPrompt,
   parseTextAnswer,
+  type AskQuestion,
 } from "./ask-question.js";
+import {
+  cancelAskWaiter,
+  hasAskWaiter,
+  resolveAskWaiter,
+  waitForAskAnswers,
+  type AskAnswer,
+} from "./ask-waiters.js";
 import {
   isResetCommand,
   resetSession,
@@ -138,10 +146,6 @@ async function deliverOutcome(
       createdAt: new Date().toISOString(),
     });
 
-    if (outcome.partialText) {
-      await replyAgentText(client, replyToMessageId, outcome.partialText);
-    }
-
     await replyAskQuestionCard(client, replyToMessageId, sessionKey, outcome.ask);
     console.log(
       `[ask] waiting for selection session=${sessionKey} questions=${outcome.ask.questions.length}`,
@@ -160,12 +164,32 @@ const sessionQueue = createSessionQueueManager(client, async (job: QueueJob) => 
       client,
       replyToMessageId: job.messageId,
       chatId: job.chatId,
+      onAskQuestion: async (ask) => {
+        pendingStore.set(sessionKey, {
+          agentId: sessionStore.get(sessionKey)?.agentId ?? "",
+          chatId: job.chatId,
+          replyToMessageId: job.messageId,
+          title: ask.title,
+          questions: ask.questions,
+          createdAt: new Date().toISOString(),
+        });
+        await replyAskQuestionCard(client, job.messageId, sessionKey, ask);
+        console.log(
+          `[ask] waiting (feishu_ask_question) session=${sessionKey} questions=${ask.questions.length}`,
+        );
+        try {
+          return await waitForAskAnswers(sessionKey);
+        } finally {
+          pendingStore.delete(sessionKey);
+        }
+      },
     });
     const outcome = await runCursorAgent(sessionStore, sessionKey, job.prompt, {
       customTools,
     });
     await deliverOutcome(sessionKey, job.messageId, job.chatId, outcome);
   } catch (err) {
+    cancelAskWaiter(sessionKey, "agent failed");
     const message = err instanceof Error ? err.message : String(err);
     console.error("[handle] agent failed:", err);
     await replyText(client, job.messageId, `处理失败：${message}`);
@@ -185,11 +209,24 @@ function enqueuePrompt(
   });
 }
 
+function freeformAnswers(questions: AskQuestion[], text: string): AskAnswer[] {
+  return questions.map((q) => ({
+    questionId: q.id,
+    selectedOptionIds: [],
+    freeformText: text,
+  }));
+}
+
 async function continueWithAnswers(
   sessionKey: string,
   replyToMessageId: string,
-  answers: Array<{ questionId: string; selectedOptionIds: string[]; freeformText?: string }>,
+  answers: AskAnswer[],
 ): Promise<void> {
+  if (resolveAskWaiter(sessionKey, answers)) {
+    console.log(`[ask] resolved in-run waiter session=${sessionKey}`);
+    return;
+  }
+
   const pending = pendingStore.get(sessionKey);
   if (!pending) {
     await replyText(client, replyToMessageId, "没有待回答的选择题，直接发消息即可。");
@@ -251,6 +288,7 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
   }
 
   if (isResetCommand(text)) {
+    cancelAskWaiter(sessionKey, "user reset");
     resetSession(sessionStore, sessionKey);
     pendingStore.delete(sessionKey);
     await sessionQueue.clear(sessionKey);
@@ -260,12 +298,13 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
 
   const pending = pendingStore.get(sessionKey);
   if (pending && text && !attachmentPrompt) {
-    const answers = parseTextAnswer(pending.questions, text);
+    const answers =
+      parseTextAnswer(pending.questions, text) ??
+      (hasAskWaiter(sessionKey) ? freeformAnswers(pending.questions, text) : undefined);
     if (answers) {
       await continueWithAnswers(sessionKey, msg.messageId, answers);
       return;
     }
-    // Not a valid answer — treat as normal new prompt, drop pending.
     console.log(`[ask] clearing pending; treating as new prompt session=${sessionKey}`);
     pendingStore.delete(sessionKey);
   }
@@ -291,6 +330,7 @@ async function handleCardAction(data: unknown) {
   const q = pending.questions.find((qq) => qq.id === value.qid);
   if (!q || !q.options.some((o) => o.id === value.oid)) {
     await replyText(client, replyTo, "选项无效或已过期，请重新提问。");
+    cancelAskWaiter(sessionKey, "invalid option");
     pendingStore.delete(sessionKey);
     return;
   }

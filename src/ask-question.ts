@@ -23,28 +23,41 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 function parseOptions(raw: unknown): AskOption[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item, index) => {
-      const obj = asRecord(item);
-      if (!obj) return undefined;
-      const id =
-        typeof obj.id === "string"
-          ? obj.id
-          : typeof obj.value === "string"
-            ? obj.value
-            : `opt_${index + 1}`;
-      const label =
-        typeof obj.label === "string"
-          ? obj.label
-          : typeof obj.text === "string"
-            ? obj.text
-            : typeof obj.title === "string"
-              ? obj.title
-              : String(id);
-      return { id, label };
-    })
-    .filter((x): x is AskOption => Boolean(x));
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item, index) => {
+        if (typeof item === "string" && item.trim()) {
+          return { id: `opt_${index + 1}`, label: item.trim() };
+        }
+        const obj = asRecord(item);
+        if (!obj) return undefined;
+        const id =
+          typeof obj.id === "string"
+            ? obj.id
+            : typeof obj.value === "string"
+              ? obj.value
+              : `opt_${index + 1}`;
+        const label =
+          typeof obj.label === "string"
+            ? obj.label
+            : typeof obj.text === "string"
+              ? obj.text
+              : typeof obj.title === "string"
+                ? obj.title
+                : typeof obj.description === "string"
+                  ? obj.description
+                  : String(id);
+        return { id, label };
+      })
+      .filter((x): x is AskOption => Boolean(x));
+  }
+
+  const obj = asRecord(raw);
+  if (!obj) return [];
+  return Object.entries(obj).map(([id, label], index) => ({
+    id: id || `opt_${index + 1}`,
+    label: typeof label === "string" && label.trim() ? label : String(id),
+  }));
 }
 
 function parseQuestions(raw: unknown): AskQuestion[] {
@@ -66,9 +79,10 @@ function parseQuestions(raw: unknown): AskQuestion[] {
             ? obj.question
             : typeof obj.text === "string"
               ? obj.text
-              : `问题 ${index + 1}`;
+              : typeof obj.header === "string"
+                ? obj.header
+                : `问题 ${index + 1}`;
       const options = parseOptions(obj.options ?? obj.choices);
-      if (options.length === 0) return undefined;
       return {
         id,
         prompt,
@@ -81,7 +95,7 @@ function parseQuestions(raw: unknown): AskQuestion[] {
 
 /** Defensive parse of askQuestion tool args / tool_use input. */
 export function parseAskQuestionArgs(args: unknown): ParsedAskQuestion | undefined {
-  const root = asRecord(args);
+  const root = asRecord(coerceJson(args));
   if (!root) return undefined;
 
   const nested =
@@ -91,22 +105,22 @@ export function parseAskQuestionArgs(args: unknown): ParsedAskQuestion | undefin
     root;
 
   const questions = parseQuestions(
-    nested.questions ?? nested.question_list ?? nested.items,
+    coerceJson(nested.questions ?? nested.question_list ?? nested.items),
   );
   if (questions.length === 0) {
-    // Single-question flattened shape
     const options = parseOptions(nested.options ?? nested.choices);
-    if (options.length > 0) {
+    const prompt =
+      typeof nested.prompt === "string"
+        ? nested.prompt
+        : typeof nested.question === "string"
+          ? nested.question
+          : typeof nested.title === "string"
+            ? nested.title
+            : "";
+    if (options.length > 0 || prompt) {
       questions.push({
         id: typeof nested.id === "string" ? nested.id : "q1",
-        prompt:
-          typeof nested.prompt === "string"
-            ? nested.prompt
-            : typeof nested.question === "string"
-              ? nested.question
-              : typeof nested.title === "string"
-                ? nested.title
-                : "请选择",
+        prompt: prompt || "请选择",
         options,
         allowMultiple: Boolean(nested.allowMultiple ?? nested.allow_multiple),
       });
@@ -121,10 +135,49 @@ export function parseAskQuestionArgs(args: unknown): ParsedAskQuestion | undefin
   };
 }
 
-export function isAskQuestionToolName(name: string | undefined): boolean {
+function coerceJson(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return raw;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return raw;
+  }
+}
+
+/** Built-in Cursor AskQuestion only — not our Feishu custom tool. */
+export function isBuiltinAskQuestionToolName(name: string | undefined): boolean {
   if (!name) return false;
   const n = name.replace(/[_-]/g, "").toLowerCase();
-  return n === "askquestion" || n.endsWith("askquestion");
+  return n === "askquestion";
+}
+
+export function isAskQuestionToolName(name: string | undefined): boolean {
+  return isBuiltinAskQuestionToolName(name);
+}
+
+/** Last-resort ask payload when the tool fired but args did not parse. */
+export function fallbackAskFromRaw(args: unknown): ParsedAskQuestion {
+  const parsed = parseAskQuestionArgs(args);
+  if (parsed) return parsed;
+  const dump =
+    typeof args === "string"
+      ? args
+      : args == null
+        ? ""
+        : JSON.stringify(args, null, 2);
+  return {
+    title: "需要你的回复",
+    questions: [
+      {
+        id: "q1",
+        prompt: dump.trim() || "Agent 发起了询问，但题目解析失败。请直接回复你的选择或补充说明。",
+        options: [],
+        allowMultiple: false,
+      },
+    ],
+  };
 }
 
 /** Format selected answers as a follow-up user message for Agent.send. */

@@ -10,7 +10,7 @@ alwaysApply: true
 ## 职责
 
 - 协助写代码、排障、运维与部署
-- 在飞书里回答简洁、可执行；需要选择时用选择题
+- 在飞书里回答简洁、可执行；需要对方做选择时，必须调用 `feishu_ask_question`（题目和选项会发到飞书）。不要只写「等你回上面的题」——飞书用户看不到 Cursor 里的询问框。
 - 可在 `AGENT_CWD/.cursor/rules/` 下创建或更新规则，沉淀领域约定与协作习惯
 - 文件修改范围以 `config.yaml` 里的 `agent.cwd` / `agent.dirs` 白名单为准
 - 可使用本机 shell（SSH / git / 项目脚本），除非 `agent.sandbox=true`

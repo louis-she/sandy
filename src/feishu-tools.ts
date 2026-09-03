@@ -4,6 +4,12 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import type { SDKCustomTool, SDKJsonValue } from "@cursor/sdk";
 import { config } from "./config.js";
 import {
+  fallbackAskFromRaw,
+  parseAskQuestionArgs,
+  type ParsedAskQuestion,
+} from "./ask-question.js";
+import type { AskAnswer } from "./ask-waiters.js";
+import {
   appendMarkdownToDocument,
   createDocument,
   createDocumentWithMarkdown,
@@ -35,6 +41,7 @@ export type FeishuToolContext = {
   client: Lark.Client;
   replyToMessageId: string;
   chatId: string;
+  onAskQuestion?: (ask: ParsedAskQuestion) => Promise<AskAnswer[]>;
 };
 
 /** In-process tools exposed to the Cursor agent as custom-user-tools. */
@@ -42,6 +49,71 @@ export function buildFeishuCustomTools(
   ctx: FeishuToolContext,
 ): Record<string, SDKCustomTool> {
   return {
+    feishu_ask_question: {
+      description:
+        "Ask the Feishu user one or more questions and wait until they reply. " +
+        "Always use this when you need a decision (auth, image, plan, env, etc.). " +
+        "The user cannot see Cursor's AskQuestion UI — never write “等你回上面的题” " +
+        "without calling this tool. Include the full prompt and options on every question.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Optional card title" },
+          questions: {
+            type: "array",
+            description: "Questions to show in Feishu",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                prompt: { type: "string", description: "Question text shown to the user" },
+                options: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      label: { type: "string" },
+                    },
+                  },
+                },
+                allowMultiple: { type: "boolean" },
+              },
+              required: ["prompt"],
+            },
+          },
+        },
+        required: ["questions"],
+      },
+      async execute(args) {
+        try {
+          if (!ctx.onAskQuestion) {
+            throw new Error("onAskQuestion is not configured");
+          }
+          const parsed =
+            parseAskQuestionArgs(args) ?? fallbackAskFromRaw(args);
+          const answers = await ctx.onAskQuestion(parsed);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ ok: true, answers }),
+              },
+            ],
+          };
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `feishu_ask_question cancelled: ${err instanceof Error ? err.message : String(err)}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      },
+    },
     feishu_send_file: {
       description:
         "Send a local file or image to the current Feishu chat as a reply. " +

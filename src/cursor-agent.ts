@@ -1,6 +1,7 @@
 import { Agent, CursorAgentError, type SDKCustomTool } from "@cursor/sdk";
 import {
-  isAskQuestionToolName,
+  fallbackAskFromRaw,
+  isBuiltinAskQuestionToolName,
   parseAskQuestionArgs,
   type ParsedAskQuestion,
 } from "./ask-question.js";
@@ -45,29 +46,24 @@ export async function runCursorAgent(
   const existing = sessionStore.get(sessionKey);
   let agent;
   const customTools = options?.customTools;
+  const agentOptions = {
+    apiKey: config.cursorApiKey,
+    model: { id: config.cursorModel },
+    name: config.agentName,
+    // Built-in AskQuestion is auto-declined in the SDK and never reaches Feishu.
+    disallowedTools: ["askQuestion"],
+    local: {
+      ...localAgentOptions(),
+      ...(customTools ? { customTools } : {}),
+    },
+  };
 
   try {
     if (existing?.agentId) {
-      agent = await Agent.resume(existing.agentId, {
-        apiKey: config.cursorApiKey,
-        model: { id: config.cursorModel },
-        name: config.agentName,
-        local: {
-          ...localAgentOptions(),
-          ...(customTools ? { customTools } : {}),
-        },
-      });
+      agent = await Agent.resume(existing.agentId, agentOptions);
       console.log(`[cursor] resumed agent=${existing.agentId} session=${sessionKey}`);
     } else {
-      agent = await Agent.create({
-        apiKey: config.cursorApiKey,
-        model: { id: config.cursorModel },
-        name: config.agentName,
-        local: {
-          ...localAgentOptions(),
-          ...(customTools ? { customTools } : {}),
-        },
-      });
+      agent = await Agent.create(agentOptions);
       sessionStore.set(sessionKey, agent.agentId);
       console.log(`[cursor] created agent=${agent.agentId} session=${sessionKey}`);
     }
@@ -88,31 +84,26 @@ export async function runCursorAgent(
           if (block.type === "text" && block.text) {
             partialText += block.text;
           }
-          if (block.type === "tool_use" && isAskQuestionToolName(block.name)) {
-            const parsed = parseAskQuestionArgs(block.input);
-            if (parsed) {
-              pendingAsk = parsed;
-              sawAskQuestion = true;
-              console.log(
-                `[cursor] askQuestion via tool_use questions=${parsed.questions.length}`,
-              );
-            }
+          if (block.type === "tool_use" && isBuiltinAskQuestionToolName(block.name)) {
+            pendingAsk = parseAskQuestionArgs(block.input) ?? fallbackAskFromRaw(block.input);
+            sawAskQuestion = true;
+            console.log(
+              `[cursor] askQuestion via tool_use questions=${pendingAsk.questions.length}`,
+            );
           }
         }
       }
 
-      if (event.type === "tool_call" && isAskQuestionToolName(event.name)) {
-        const parsed = parseAskQuestionArgs(event.args);
-        if (parsed) {
-          pendingAsk = parsed;
-          sawAskQuestion = true;
-          console.log(
-            `[cursor] askQuestion tool_call status=${event.status} questions=${parsed.questions.length}`,
-          );
-        } else {
+      if (event.type === "tool_call" && isBuiltinAskQuestionToolName(event.name)) {
+        pendingAsk = parseAskQuestionArgs(event.args) ?? fallbackAskFromRaw(event.args);
+        sawAskQuestion = true;
+        console.log(
+          `[cursor] askQuestion tool_call status=${event.status} questions=${pendingAsk.questions.length}`,
+        );
+        if (!parseAskQuestionArgs(event.args)) {
           console.warn(
-            "[cursor] askQuestion tool_call with unparsable args:",
-            JSON.stringify(event.args)?.slice(0, 500),
+            "[cursor] askQuestion args used fallback:",
+            JSON.stringify(event.args)?.slice(0, 800),
           );
         }
 
