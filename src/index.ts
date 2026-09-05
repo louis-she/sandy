@@ -6,7 +6,6 @@ import {
 } from "./ask-question.js";
 import {
   cancelAskWaiter,
-  hasAskWaiter,
   resolveAskWaiter,
   waitForAskAnswers,
   type AskAnswer,
@@ -309,12 +308,12 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
   if (pending && text && !attachmentPrompt) {
     const answers =
       parseTextAnswer(pending.questions, text) ??
-      (hasAskWaiter(sessionKey) ? freeformAnswers(pending.questions, text) : undefined);
-    if (answers) {
-      await continueWithAnswers(sessionKey, msg.messageId, answers);
-      return;
-    }
-    console.log(`[ask] clearing pending; treating as new prompt session=${sessionKey}`);
+      freeformAnswers(pending.questions, text);
+    await continueWithAnswers(sessionKey, msg.messageId, answers);
+    return;
+  }
+  if (pending && attachmentPrompt) {
+    cancelAskWaiter(sessionKey, "user sent attachment");
     pendingStore.delete(sessionKey);
   }
 

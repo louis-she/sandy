@@ -37,6 +37,24 @@ export function isResetCommand(text: string): boolean {
   return RESET_COMMANDS.has(text.trim().toLowerCase()) || RESET_COMMANDS.has(text.trim());
 }
 
+function isActiveRunError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /already has active run/i.test(msg);
+}
+
+function sendOptions(
+  customTools: Record<string, SDKCustomTool> | undefined,
+  force = false,
+) {
+  if (!customTools && !force) return undefined;
+  return {
+    local: {
+      ...(customTools ? { customTools } : {}),
+      ...(force ? { force: true } : {}),
+    },
+  };
+}
+
 export async function runCursorAgent(
   sessionStore: SessionStore,
   sessionKey: string,
@@ -68,10 +86,30 @@ export async function runCursorAgent(
       console.log(`[cursor] created agent=${agent.agentId} session=${sessionKey}`);
     }
 
-    const run = await agent.send(
-      prompt,
-      customTools ? { local: { customTools } } : undefined,
-    );
+    let run;
+    try {
+      run = await agent.send(prompt, sendOptions(customTools));
+    } catch (err) {
+      if (!isActiveRunError(err)) throw err;
+      console.warn(
+        `[cursor] stuck active run, retrying with force agent=${agent.agentId}`,
+      );
+      try {
+        run = await agent.send(prompt, sendOptions(customTools, true));
+      } catch (forceErr) {
+        if (!isActiveRunError(forceErr)) throw forceErr;
+        console.warn(
+          `[cursor] force failed, creating new agent session=${sessionKey}`,
+        );
+        await agent[Symbol.asyncDispose]();
+        agent = undefined;
+        sessionStore.delete(sessionKey);
+        agent = await Agent.create(agentOptions);
+        sessionStore.set(sessionKey, agent.agentId);
+        run = await agent.send(prompt, sendOptions(customTools));
+        console.log(`[cursor] created agent=${agent.agentId} session=${sessionKey}`);
+      }
+    }
     console.log(`[cursor] run=${run.id} agent=${agent.agentId}`);
 
     let partialText = "";
@@ -162,7 +200,7 @@ export async function runCursorAgent(
     };
   } catch (err) {
     if (err instanceof CursorAgentError) {
-      if (existing?.agentId) {
+      if (existing?.agentId && !isActiveRunError(err)) {
         sessionStore.delete(sessionKey);
       }
       throw new Error(
