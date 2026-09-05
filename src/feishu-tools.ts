@@ -51,10 +51,11 @@ export function buildFeishuCustomTools(
   return {
     feishu_ask_question: {
       description:
-        "Ask the Feishu user one or more questions and wait until they reply. " +
-        "Always use this when you need a decision (auth, image, plan, env, etc.). " +
-        "The user cannot see Cursor's AskQuestion UI — never write “等你回上面的题” " +
-        "without calling this tool. Include the full prompt and options on every question.",
+        "Ask the Feishu user blocking questions in a SINGLE round and wait for their reply. " +
+        "Put every decision you need into this one call (max 4 questions). " +
+        "The user cannot see Cursor's AskQuestion UI — never write “等你回上面的题” without this tool. " +
+        "Do NOT call this tool again in the same turn after they answer. " +
+        "If you can pick a reasonable default, skip asking, state the assumption in one line, and proceed.",
       inputSchema: {
         type: "object",
         properties: {
@@ -97,7 +98,12 @@ export function buildFeishuCustomTools(
             content: [
               {
                 type: "text",
-                text: JSON.stringify({ ok: true, answers }),
+                text: JSON.stringify({
+                  ok: true,
+                  answers,
+                  instruction:
+                    "User answered. Finish this turn with those choices. Do not ask another round.",
+                }),
               },
             ],
           };

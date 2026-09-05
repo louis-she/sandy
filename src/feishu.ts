@@ -350,13 +350,6 @@ export async function replyAskQuestionCard(
   sessionKey: string,
   ask: ParsedAskQuestion,
 ): Promise<void> {
-  // Always send readable text first. Cursor's built-in AskQuestion UI never
-  // reaches Feishu; if the interactive card fails, the user still sees the
-  // questions and how to reply.
-  await replyText(client, messageId, formatAskQuestionFallbackText(ask), {
-    preferMarkdown: true,
-  });
-
   const card = buildAskQuestionCard(sessionKey, ask);
   try {
     await client.im.v1.message.reply({
@@ -367,7 +360,10 @@ export async function replyAskQuestionCard(
       },
     });
   } catch (err) {
-    console.warn("[feishu] interactive ask card failed (text already sent):", err);
+    console.warn("[feishu] interactive ask card failed, falling back to text:", err);
+    await replyText(client, messageId, formatAskQuestionFallbackText(ask), {
+      preferMarkdown: true,
+    });
   }
 }
 

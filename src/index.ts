@@ -159,23 +159,32 @@ async function deliverOutcome(
 
 const sessionQueue = createSessionQueueManager(client, async (job: QueueJob) => {
   const sessionKey = job.chatId;
+  let askRounds = 0;
   try {
     const customTools = buildFeishuCustomTools({
       client,
       replyToMessageId: job.messageId,
       chatId: job.chatId,
       onAskQuestion: async (ask) => {
+        if (askRounds >= 1) {
+          throw new Error(
+            "本轮已经问过一次选择题。禁止再次提问。根据用户已选和合理默认继续执行，直接给出可执行结论。",
+          );
+        }
+        askRounds += 1;
+        const questions = ask.questions.slice(0, 4);
+        const clipped = { ...ask, questions };
         pendingStore.set(sessionKey, {
           agentId: sessionStore.get(sessionKey)?.agentId ?? "",
           chatId: job.chatId,
           replyToMessageId: job.messageId,
-          title: ask.title,
-          questions: ask.questions,
+          title: clipped.title,
+          questions,
           createdAt: new Date().toISOString(),
         });
-        await replyAskQuestionCard(client, job.messageId, sessionKey, ask);
+        await replyAskQuestionCard(client, job.messageId, sessionKey, clipped);
         console.log(
-          `[ask] waiting (feishu_ask_question) session=${sessionKey} questions=${ask.questions.length}`,
+          `[ask] waiting (feishu_ask_question) session=${sessionKey} questions=${questions.length} round=${askRounds}`,
         );
         try {
           return await waitForAskAnswers(sessionKey);
