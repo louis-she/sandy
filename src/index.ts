@@ -1,30 +1,16 @@
 import path from "node:path";
 import {
-  formatAnswerPrompt,
-  parseTextAnswer,
-  type AskQuestion,
-} from "./ask-question.js";
-import {
-  cancelAskWaiter,
-  resolveAskWaiter,
-  waitForAskAnswers,
-  type AskAnswer,
-} from "./ask-waiters.js";
-import {
   isResetCommand,
   resetSession,
   runCursorAgent,
-  type AgentOutcome,
 } from "./cursor-agent.js";
 import { config } from "./config.js";
 import {
   createFeishuClients,
-  extractCardAction,
   extractText,
   getBotOpenId,
   parseIncomingMessage,
   replyAgentText,
-  replyAskQuestionCard,
   replyText,
   shouldHandleMessage,
   type IncomingMessage,
@@ -34,13 +20,11 @@ import {
   parseIncomingFileContent,
 } from "./feishu-files.js";
 import { buildFeishuCustomTools } from "./feishu-tools.js";
-import { PendingQuestionStore } from "./pending-store.js";
 import { createSessionQueueManager, type QueueJob } from "./session-queue.js";
 import { SessionStore } from "./session-store.js";
 import { writeHookPolicy } from "./write-hook-policy.js";
 
 const sessionStore = new SessionStore(config.sessionStorePath);
-const pendingStore = new PendingQuestionStore(config.pendingStorePath);
 
 let eventDispatcher: InstanceType<typeof Lark.EventDispatcher> | undefined;
 let wsRestartTimer: ReturnType<typeof setTimeout> | undefined;
@@ -128,76 +112,19 @@ async function materializeIncomingAttachment(
     .join("\n");
 }
 
-async function deliverOutcome(
-  sessionKey: string,
-  replyToMessageId: string,
-  chatId: string,
-  outcome: AgentOutcome,
-): Promise<void> {
-  if (outcome.type === "needs_input") {
-    pendingStore.set(sessionKey, {
-      agentId: outcome.agentId,
-      chatId,
-      replyToMessageId,
-      title: outcome.ask.title,
-      questions: outcome.ask.questions,
-      partialText: outcome.partialText,
-      createdAt: new Date().toISOString(),
-    });
-
-    await replyAskQuestionCard(client, replyToMessageId, sessionKey, outcome.ask);
-    console.log(
-      `[ask] waiting for selection session=${sessionKey} questions=${outcome.ask.questions.length}`,
-    );
-    return;
-  }
-
-  pendingStore.delete(sessionKey);
-  await replyAgentText(client, replyToMessageId, outcome.text);
-}
-
 const sessionQueue = createSessionQueueManager(client, async (job: QueueJob) => {
   const sessionKey = job.chatId;
-  let askRounds = 0;
   try {
     const customTools = buildFeishuCustomTools({
       client,
       replyToMessageId: job.messageId,
       chatId: job.chatId,
-      onAskQuestion: async (ask) => {
-        if (askRounds >= 1) {
-          throw new Error(
-            "本轮已经问过一次选择题。禁止再次提问。根据用户已选和合理默认继续执行，直接给出可执行结论。",
-          );
-        }
-        askRounds += 1;
-        const questions = ask.questions.slice(0, 4);
-        const clipped = { ...ask, questions };
-        pendingStore.set(sessionKey, {
-          agentId: sessionStore.get(sessionKey)?.agentId ?? "",
-          chatId: job.chatId,
-          replyToMessageId: job.messageId,
-          title: clipped.title,
-          questions,
-          createdAt: new Date().toISOString(),
-        });
-        await replyAskQuestionCard(client, job.messageId, sessionKey, clipped);
-        console.log(
-          `[ask] waiting (feishu_ask_question) session=${sessionKey} questions=${questions.length} round=${askRounds}`,
-        );
-        try {
-          return await waitForAskAnswers(sessionKey);
-        } finally {
-          pendingStore.delete(sessionKey);
-        }
-      },
     });
     const outcome = await runCursorAgent(sessionStore, sessionKey, job.prompt, {
       customTools,
     });
-    await deliverOutcome(sessionKey, job.messageId, job.chatId, outcome);
+    await replyAgentText(client, job.messageId, outcome.text);
   } catch (err) {
-    cancelAskWaiter(sessionKey, "agent failed");
     const message = err instanceof Error ? err.message : String(err);
     console.error("[handle] agent failed:", err);
     await replyText(client, job.messageId, `处理失败：${message}`);
@@ -215,35 +142,6 @@ function enqueuePrompt(
     chatId,
     prompt,
   });
-}
-
-function freeformAnswers(questions: AskQuestion[], text: string): AskAnswer[] {
-  return questions.map((q) => ({
-    questionId: q.id,
-    selectedOptionIds: [],
-    freeformText: text,
-  }));
-}
-
-async function continueWithAnswers(
-  sessionKey: string,
-  replyToMessageId: string,
-  answers: AskAnswer[],
-): Promise<void> {
-  if (resolveAskWaiter(sessionKey, answers)) {
-    console.log(`[ask] resolved in-run waiter session=${sessionKey}`);
-    return;
-  }
-
-  const pending = pendingStore.get(sessionKey);
-  if (!pending) {
-    await replyText(client, replyToMessageId, "没有待回答的选择题，直接发消息即可。");
-    return;
-  }
-
-  const prompt = formatAnswerPrompt(pending.questions, answers);
-  pendingStore.delete(sessionKey);
-  enqueuePrompt(sessionKey, replyToMessageId, pending.chatId, prompt);
 }
 
 async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
@@ -296,57 +194,13 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
   }
 
   if (isResetCommand(text)) {
-    cancelAskWaiter(sessionKey, "user reset");
     resetSession(sessionStore, sessionKey);
-    pendingStore.delete(sessionKey);
     await sessionQueue.clear(sessionKey);
     await replyText(client, msg.messageId, "已开启新对话。直接发消息即可。");
     return;
   }
 
-  const pending = pendingStore.get(sessionKey);
-  if (pending && text && !attachmentPrompt) {
-    const answers =
-      parseTextAnswer(pending.questions, text) ??
-      freeformAnswers(pending.questions, text);
-    await continueWithAnswers(sessionKey, msg.messageId, answers);
-    return;
-  }
-  if (pending && attachmentPrompt) {
-    cancelAskWaiter(sessionKey, "user sent attachment");
-    pendingStore.delete(sessionKey);
-  }
-
   enqueuePrompt(sessionKey, msg.messageId, msg.chatId, prompt);
-}
-
-async function handleCardAction(data: unknown) {
-  const { value, chatId, messageId } = extractCardAction(data);
-  if (!value) {
-    console.warn("[card] ignore non-askq action", JSON.stringify(data)?.slice(0, 400));
-    return;
-  }
-
-  const sessionKey = value.sk;
-  const pending = pendingStore.get(sessionKey);
-  if (!pending) {
-    console.warn(`[card] no pending for session=${sessionKey}`);
-    return;
-  }
-
-  const replyTo = messageId || pending.replyToMessageId;
-  const q = pending.questions.find((qq) => qq.id === value.qid);
-  if (!q || !q.options.some((o) => o.id === value.oid)) {
-    await replyText(client, replyTo, "选项无效或已过期，请重新提问。");
-    cancelAskWaiter(sessionKey, "invalid option");
-    pendingStore.delete(sessionKey);
-    return;
-  }
-
-  // Button path is for single-question single-select cards.
-  await continueWithAnswers(sessionKey, replyTo, [
-    { questionId: value.qid, selectedOptionIds: [value.oid] },
-  ]);
 }
 
 async function main() {
@@ -382,15 +236,11 @@ async function main() {
         console.error("[ws] unhandled message error:", err);
       });
     },
-    "card.action.trigger": async (data: Record<string, unknown>) => {
-      // Must return within ~3s; agent continue runs in background.
-      void handleCardAction(data).catch((err: unknown) => {
-        console.error("[ws] unhandled card action error:", err);
-      });
+    "card.action.trigger": async () => {
       return {
         toast: {
           type: "info",
-          content: "已收到选择，继续处理…",
+          content: "请直接用文字回复，不用点选项。",
         },
       };
     },

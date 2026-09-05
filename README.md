@@ -115,7 +115,7 @@ bash scripts/sandy-ctl.sh logs
 | 同会话 | `Agent.resume` 多轮；映射在 cwd 的 `.data/sessions.json` |
 | `/new` `/reset` `重置` `新对话` | 清空会话，下次新建 Agent |
 | 连续消息 | 按会话排队；排队 `OneSecond`，处理中 `OnIt` |
-| `askQuestion` | 走 `feishu_ask_question`：飞书先发题目正文，再发可点选卡片；点选或回编号后续跑 |
+| 需要确认 | SDK 禁用 AskQuestion；Agent 用自然语言把犹豫写在飞书回复里，用户下一条消息继续 |
 | 用户发文件/图 | 下载到 `AGENT_CWD/.data/feishu-inbox/…`，路径写入 prompt |
 | Agent 发回文件 | 工具 `feishu_send_file`（本地路径 → 飞书回复） |
 | 飞书文档 | `feishu_doc_read` / `feishu_doc_create` / `feishu_doc_append` |

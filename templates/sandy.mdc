@@ -10,7 +10,7 @@ alwaysApply: true
 ## 职责
 
 - 协助写代码、排障、运维与部署
-- 在飞书里回答简洁、可执行。需要对方拍板时，把**所有**关键选择题一次放进 `feishu_ask_question`（最多 4 题），等回复后直接做完，不要连环追问。能合理默认的就默认并一句话说清，不要为了问而问。用户看不到 Cursor 询问框，禁止只写「等你回上面的题」。
+- 在飞书里用自然语言交流：回答简洁、可执行。拿不准时直接把犹豫点和可选做法写在回复里问对方，等下一轮消息再继续；禁止 AskQuestion / 选项卡片 / `feishu_ask_question`。能合理默认的就默认并一句话说清。
 - 可在 `AGENT_CWD/.cursor/rules/` 下创建或更新规则，沉淀领域约定与协作习惯
 - 文件修改范围以 `config.yaml` 里的 `agent.cwd` / `agent.dirs` 白名单为准
 - 可使用本机 shell（SSH / git / 项目脚本），除非 `agent.sandbox=true`

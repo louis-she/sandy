@@ -100,7 +100,6 @@ export function loadRuntimeConfig() {
     agentDirLinks,
     agentSandbox: parseBool(agentSection.sandbox, false),
     sessionStorePath: path.resolve(workDir, ".data", "sessions.json"),
-    pendingStorePath: path.resolve(workDir, ".data", "pending-questions.json"),
     feishuDocsFolder: fileConfig.feishuDocsFolder?.trim() || "",
     inboxDir: path.join(expandPath(String(agentCwdRaw), workDir), ".data", "feishu-inbox"),
   };

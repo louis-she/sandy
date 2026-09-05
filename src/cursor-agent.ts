@@ -1,14 +1,8 @@
 import { Agent, CursorAgentError, type SDKCustomTool } from "@cursor/sdk";
-import {
-  fallbackAskFromRaw,
-  isBuiltinAskQuestionToolName,
-  parseAskQuestionArgs,
-  type ParsedAskQuestion,
-} from "./ask-question.js";
 import { config, localAgentOptions } from "./config.js";
 import type { SessionStore } from "./session-store.js";
 
-export type AgentFinished = {
+export type AgentOutcome = {
   type: "finished";
   text: string;
   agentId: string;
@@ -16,22 +10,16 @@ export type AgentFinished = {
   status: string;
 };
 
-export type AgentNeedsInput = {
-  type: "needs_input";
-  agentId: string;
-  runId?: string;
-  ask: ParsedAskQuestion;
-  partialText?: string;
-};
-
-export type AgentOutcome = AgentFinished | AgentNeedsInput;
-
 export type RunCursorAgentOptions = {
   /** Per-turn Feishu tools (reply target changes each message). */
   customTools?: Record<string, SDKCustomTool>;
 };
 
 const RESET_COMMANDS = new Set(["/new", "/reset", "重置", "新对话"]);
+
+/** SDK has no AskQuestion UI. Never offer multiple-choice; talk in Feishu. */
+const FEISHU_TURN_HINT =
+  "【飞书】禁止使用 AskQuestion / 选择题 / 选项卡片。拿不准时用自然语言直接写在回复里问用户，等下一轮飞书消息再继续。能合理默认的就默认，并一句话说清假设。";
 
 export function isResetCommand(text: string): boolean {
   return RESET_COMMANDS.has(text.trim().toLowerCase()) || RESET_COMMANDS.has(text.trim());
@@ -86,16 +74,18 @@ export async function runCursorAgent(
       console.log(`[cursor] created agent=${agent.agentId} session=${sessionKey}`);
     }
 
+    const turnPrompt = `${FEISHU_TURN_HINT}\n\n${prompt}`;
+
     let run;
     try {
-      run = await agent.send(prompt, sendOptions(customTools));
+      run = await agent.send(turnPrompt, sendOptions(customTools));
     } catch (err) {
       if (!isActiveRunError(err)) throw err;
       console.warn(
         `[cursor] stuck active run, retrying with force agent=${agent.agentId}`,
       );
       try {
-        run = await agent.send(prompt, sendOptions(customTools, true));
+        run = await agent.send(turnPrompt, sendOptions(customTools, true));
       } catch (forceErr) {
         if (!isActiveRunError(forceErr)) throw forceErr;
         console.warn(
@@ -106,15 +96,13 @@ export async function runCursorAgent(
         sessionStore.delete(sessionKey);
         agent = await Agent.create(agentOptions);
         sessionStore.set(sessionKey, agent.agentId);
-        run = await agent.send(prompt, sendOptions(customTools));
+        run = await agent.send(turnPrompt, sendOptions(customTools));
         console.log(`[cursor] created agent=${agent.agentId} session=${sessionKey}`);
       }
     }
     console.log(`[cursor] run=${run.id} agent=${agent.agentId}`);
 
     let partialText = "";
-    let pendingAsk: ParsedAskQuestion | undefined;
-    let sawAskQuestion = false;
 
     for await (const event of run.stream()) {
       if (event.type === "assistant") {
@@ -122,63 +110,11 @@ export async function runCursorAgent(
           if (block.type === "text" && block.text) {
             partialText += block.text;
           }
-          if (block.type === "tool_use" && isBuiltinAskQuestionToolName(block.name)) {
-            pendingAsk = parseAskQuestionArgs(block.input) ?? fallbackAskFromRaw(block.input);
-            sawAskQuestion = true;
-            console.log(
-              `[cursor] askQuestion via tool_use questions=${pendingAsk.questions.length}`,
-            );
-          }
         }
       }
-
-      if (event.type === "tool_call" && isBuiltinAskQuestionToolName(event.name)) {
-        pendingAsk = parseAskQuestionArgs(event.args) ?? fallbackAskFromRaw(event.args);
-        sawAskQuestion = true;
-        console.log(
-          `[cursor] askQuestion tool_call status=${event.status} questions=${pendingAsk.questions.length}`,
-        );
-        if (!parseAskQuestionArgs(event.args)) {
-          console.warn(
-            "[cursor] askQuestion args used fallback:",
-            JSON.stringify(event.args)?.slice(0, 800),
-          );
-        }
-
-        // Plan A: stop this run and wait for Feishu selection as the next turn.
-        if (event.status === "running" && pendingAsk) {
-          if (run.supports("cancel")) {
-            await run.cancel();
-          }
-          break;
-        }
-      }
-
       if (event.type === "request") {
         console.log(`[cursor] request event request_id=${event.request_id}`);
-        // If we already parsed askQuestion args, cancel & hand off to Feishu.
-        if (pendingAsk && run.supports("cancel")) {
-          await run.cancel();
-          break;
-        }
       }
-    }
-
-    if (sawAskQuestion && pendingAsk) {
-      // Ensure run settles if cancel didn't already.
-      try {
-        await run.wait();
-      } catch {
-        // cancelled runs may reject; ignore
-      }
-
-      return {
-        type: "needs_input",
-        agentId: agent.agentId,
-        runId: run.id,
-        ask: pendingAsk,
-        partialText: partialText.trim() || undefined,
-      };
     }
 
     const result = await run.wait();

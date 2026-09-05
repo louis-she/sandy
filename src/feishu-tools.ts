@@ -4,12 +4,6 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import type { SDKCustomTool, SDKJsonValue } from "@cursor/sdk";
 import { config } from "./config.js";
 import {
-  fallbackAskFromRaw,
-  parseAskQuestionArgs,
-  type ParsedAskQuestion,
-} from "./ask-question.js";
-import type { AskAnswer } from "./ask-waiters.js";
-import {
   appendMarkdownToDocument,
   createDocument,
   createDocumentWithMarkdown,
@@ -41,7 +35,6 @@ export type FeishuToolContext = {
   client: Lark.Client;
   replyToMessageId: string;
   chatId: string;
-  onAskQuestion?: (ask: ParsedAskQuestion) => Promise<AskAnswer[]>;
 };
 
 /** In-process tools exposed to the Cursor agent as custom-user-tools. */
@@ -49,77 +42,6 @@ export function buildFeishuCustomTools(
   ctx: FeishuToolContext,
 ): Record<string, SDKCustomTool> {
   return {
-    feishu_ask_question: {
-      description:
-        "Ask the Feishu user blocking questions in a SINGLE round and wait for their reply. " +
-        "Put every decision you need into this one call (max 4 questions). " +
-        "The user cannot see Cursor's AskQuestion UI — never write “等你回上面的题” without this tool. " +
-        "Do NOT call this tool again in the same turn after they answer. " +
-        "If you can pick a reasonable default, skip asking, state the assumption in one line, and proceed.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          title: { type: "string", description: "Optional card title" },
-          questions: {
-            type: "array",
-            description: "Questions to show in Feishu",
-            items: {
-              type: "object",
-              properties: {
-                id: { type: "string" },
-                prompt: { type: "string", description: "Question text shown to the user" },
-                options: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      id: { type: "string" },
-                      label: { type: "string" },
-                    },
-                  },
-                },
-                allowMultiple: { type: "boolean" },
-              },
-              required: ["prompt"],
-            },
-          },
-        },
-        required: ["questions"],
-      },
-      async execute(args) {
-        try {
-          if (!ctx.onAskQuestion) {
-            throw new Error("onAskQuestion is not configured");
-          }
-          const parsed =
-            parseAskQuestionArgs(args) ?? fallbackAskFromRaw(args);
-          const answers = await ctx.onAskQuestion(parsed);
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({
-                  ok: true,
-                  answers,
-                  instruction:
-                    "User answered. Finish this turn with those choices. Do not ask another round.",
-                }),
-              },
-            ],
-          };
-        } catch (err) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `feishu_ask_question cancelled: ${err instanceof Error ? err.message : String(err)}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-      },
-    },
     feishu_send_file: {
       description:
         "Send a local file or image to the current Feishu chat as a reply. " +
