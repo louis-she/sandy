@@ -1,4 +1,5 @@
 import path from "node:path";
+import { tryHandleChatCommand } from "./chat-commands.js";
 import {
   isResetCommand,
   resetSession,
@@ -188,7 +189,7 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
     await replyText(
       client,
       msg.messageId,
-      "请发送文本、文件或图片；或发送 /new 开启新对话。",
+      "请发送文本、富文本、文件或图片；或发送 /new 开启新对话。",
     );
     return;
   }
@@ -198,6 +199,16 @@ async function handleMessage(raw: Parameters<typeof parseIncomingMessage>[0]) {
     await sessionQueue.clear(sessionKey);
     await replyText(client, msg.messageId, "已开启新对话。直接发消息即可。");
     return;
+  }
+
+  // Slash commands (/help, /models, /model …) — do not forward to the agent.
+  // Only when the user message is the command itself (no attachment payload).
+  if (!attachmentPrompt) {
+    const cmd = await tryHandleChatCommand(text);
+    if (cmd.handled) {
+      await replyText(client, msg.messageId, cmd.reply ?? "OK");
+      return;
+    }
   }
 
   enqueuePrompt(sessionKey, msg.messageId, msg.chatId, prompt);

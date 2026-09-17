@@ -110,10 +110,13 @@ bash scripts/sandy-ctl.sh logs
 
 | 场景 | 行为 |
 |------|------|
-| 私聊 | 文本 / 文件 / 图片进 Agent |
-| 群聊 | 仅当 @机器人（文件同理，需 @） |
+| 私聊 | 文本 / 富文本 / 文件 / 图片进 Agent |
+| 群聊 | 仅当 @机器人（富文本、文件同理，需 @） |
 | 同会话 | `Agent.resume` 多轮；映射在 cwd 的 `.data/sessions.json` |
 | `/new` `/reset` `重置` `新对话` | 清空会话，下次新建 Agent |
+| `/help` | 显示飞书侧命令帮助 |
+| `/models` / `/model` | 列出可用模型与当前模型 |
+| `/model <id\|序号>` | 切换模型并写入 `config.yaml`（热更新内存配置） |
 | 连续消息 | 按会话排队；排队 `OneSecond`，处理中 `OnIt` |
 | 需要确认 | SDK 禁用 AskQuestion；Agent 用自然语言把犹豫写在飞书回复里，用户下一条消息继续 |
 | 用户发文件/图 | 下载到 `AGENT_CWD/.data/feishu-inbox/…`，路径写入 prompt |
