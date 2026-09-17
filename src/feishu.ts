@@ -95,6 +95,57 @@ export function parseIncomingMessage(data: {
   };
 }
 
+type PostContentBlock = {
+  tag?: string;
+  text?: string;
+  href?: string;
+  user_id?: string;
+  user_name?: string;
+};
+
+type PostBody = {
+  title?: string;
+  content?: PostContentBlock[][];
+};
+
+function flattenPostBody(body: PostBody | undefined): string {
+  if (!body) return "";
+  const lines: string[] = [];
+  if (body.title) lines.push(body.title);
+  for (const row of body.content ?? []) {
+    const parts: string[] = [];
+    for (const block of row ?? []) {
+      if ((block.tag === "text" || block.tag === "a" || block.tag === "code") && block.text) {
+        parts.push(block.text);
+      } else if (block.tag === "at") {
+        parts.push(block.user_name ? `@${block.user_name}` : "");
+      } else if (block.tag === "img") {
+        parts.push("[图片]");
+      }
+    }
+    const line = parts.join("").trim();
+    if (line) lines.push(line);
+  }
+  return lines.join("\n").trim();
+}
+
+/** Flatten Feishu rich-text `post` JSON into plain text. */
+export function extractPostText(content: string): string {
+  try {
+    const parsed = JSON.parse(content) as PostBody & {
+      zh_cn?: PostBody;
+      en_us?: PostBody;
+    };
+    return (
+      flattenPostBody(parsed.zh_cn) ||
+      flattenPostBody(parsed.en_us) ||
+      flattenPostBody(parsed)
+    );
+  } catch {
+    return "";
+  }
+}
+
 /** Extract plain text and whether the bot was @mentioned. */
 export function extractText(
   msg: IncomingMessage,
@@ -103,7 +154,11 @@ export function extractText(
   let text = "";
   try {
     const parsed = JSON.parse(msg.content) as { text?: string };
-    text = typeof parsed.text === "string" ? parsed.text : "";
+    if (msg.messageType === "post") {
+      text = extractPostText(msg.content);
+    } else {
+      text = typeof parsed.text === "string" ? parsed.text : "";
+    }
   } catch {
     text = msg.content;
   }
@@ -122,7 +177,7 @@ export function extractText(
   return { text: text.replace(/\s+/g, " ").trim(), mentionedBot };
 }
 
-const HANDLE_MESSAGE_TYPES = new Set(["text", "file", "image", "media"]);
+const HANDLE_MESSAGE_TYPES = new Set(["text", "post", "file", "image", "media"]);
 
 export function shouldHandleMessage(
   msg: IncomingMessage,
